@@ -3,7 +3,7 @@
 This repository is dedicated to the Finished Goods (FG) Scan Counter & Verification System project.
 
 ## Git Repository Policy
-Whenever instructions or prompts are given to push code or update this project on GitHub, it must be pushed exclusively to the following repository:
+Whenever instructions or prompts are given to push, pull, or sync code for this project on GitHub, it must be done exclusively with the following repository:
 
 - **Repository URL**: `https://github.com/pratyushmurarka-lgtm/fg-scan-counter.git`
 
