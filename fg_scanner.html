@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>INTECH - FG Scan Counter Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #f8fafc;
+            --bg-secondary: #ffffff;
+            --accent-orange: #ea580c;
+            --accent-green: #16a34a;
+            --accent-red: #dc2626;
+            --accent-yellow: #ca8a04;
+            --text-main: #0f172a;
+            --text-sub: #475569;
+            --border: #cbd5e1;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Top Bar styling */
+        header {
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
+            align-items: center;
+            background-color: #1e3a8a;
+            border-bottom: 2px solid #172554;
+            padding: 10px 24px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .line-info {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .line-badge {
+            background: linear-gradient(135deg, var(--accent-orange), #ff4500);
+            color: white;
+            font-weight: 800;
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 1.2rem;
+            box-shadow: 0 0 10px rgba(255, 118, 27, 0.4);
+        }
+
+        .brand-details {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.75);
+        }
+        .brand-details strong {
+            color: #ffffff;
+        }
+
+        .active-model-title {
+            text-align: center;
+            font-size: 1.1rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #ffffff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .vguard-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .toggle-btn {
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #ffffff;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+        .toggle-btn:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .toggle-btn.active {
+            background: linear-gradient(135deg, #0284c7, #0369a1);
+            border-color: #38bdf8;
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
+            color: #ffffff;
+        }
+
+        /* Main Workspace Grid */
+        main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 350px 1fr 350px;
+            gap: 20px;
+            padding: 20px;
+            height: calc(100vh - 120px);
+        }
+
+        .panel {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .panel-title {
+            font-size: 1rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-sub);
+            margin-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 8px;
+        }
+
+        /* Center Column Layout */
+        .center-column {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            justify-content: space-between;
+        }
+
+        /* Massive Counter Dashboard */
+        .counter-container {
+            flex: 3;
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.05);
+        }
+
+        .counter-label {
+            font-size: 1.5rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-sub);
+            margin-bottom: 10px;
+        }
+
+        .counter-number {
+            font-family: 'Orbitron', monospace;
+            font-size: 11rem;
+            font-weight: 700;
+            color: var(--accent-orange);
+            line-height: 1;
+        }
+
+        .gap-timer {
+            margin-top: 10px;
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: var(--accent-red);
+        }
+
+        /* Status Block */
+        .status-container {
+            flex: 1;
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+        }
+
+        .status-label {
+            font-size: 0.9rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-sub);
+            margin-bottom: 6px;
+        }
+
+        .status-text {
+            font-size: 2rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #00b0ff;
+        }
+
+        /* Panel lists/grids */
+        .scrollable-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        /* Custom scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-orange);
+        }
+
+        /* Recent Scan List UI */
+        .scan-item {
+            display: grid;
+            grid-template-columns: 60px 1fr auto;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9rem;
+        }
+
+        .scan-item.success { color: var(--accent-green); }
+        .scan-item.duplicate { color: var(--accent-yellow); background-color: rgba(255,214,0,0.05); }
+        .scan-item.failure { color: var(--accent-red); background-color: rgba(255,23,68,0.05); }
+
+        /* Day Summary Grid List */
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 10px;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.95rem;
+        }
+
+        .summary-qty {
+            font-weight: 800;
+            color: var(--accent-orange);
+        }
+
+        /* Interactive Brand/Model Override Panel (Left) */
+        .manual-selector-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            height: 100%;
+        }
+
+        .brand-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .brand-btn {
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .brand-btn:hover {
+            border-color: var(--accent-orange);
+        }
+
+        .brand-btn.active {
+            background: linear-gradient(135deg, var(--accent-orange), #ff4500);
+            border-color: var(--accent-orange);
+            box-shadow: 0 0 15px rgba(255, 118, 27, 0.4);
+        }
+
+        .model-list-container {
+            flex: 1;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background-color: var(--bg-primary);
+            overflow-y: auto;
+            padding: 6px;
+        }
+
+        .model-item-btn {
+            width: 100%;
+            text-align: left;
+            background-color: transparent;
+            border: none;
+            color: var(--text-main);
+            padding: 10px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .model-item-btn:hover {
+            background-color: var(--bg-secondary);
+        }
+
+        .model-item-btn.selected {
+            background-color: #00b0ff;
+            color: white;
+            font-weight: 700;
+        }
+
+        /* Product Snapshot Image container */
+        .image-container {
+            flex: 1;
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            margin-bottom: 16px;
+            height: 380px;
+        }
+
+        .image-container img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            filter: drop-shadow(0 10px 15px rgba(0,0,0,0.3));
+        }
+
+        /* Full Screen Alerts */
+        .alert-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(255, 0, 0, 0.95);
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            animation: flash-red 0.8s infinite alternate;
+        }
+
+        .alert-overlay.duplicate {
+            background-color: rgba(200, 0, 0, 0.98);
+            animation: flash-yellow-red 0.6s infinite alternate;
+        }
+
+        .alert-text {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 800;
+            font-size: 3.5rem;
+            text-align: center;
+            color: #fff;
+            text-shadow: 0 0 30px rgba(0,0,0,0.8);
+            text-transform: uppercase;
+        }
+
+        .alert-subtext {
+            margin-top: 15px;
+            font-size: 1.8rem;
+            color: #fff;
+            font-weight: 600;
+        }
+
+        /* Footer */
+        footer {
+            height: 48px;
+            background-color: #1e3a8a;
+            border-top: 2px solid #172554;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 24px;
+            font-size: 0.95rem;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .footer-metrics span {
+            margin-right: 24px;
+        }
+
+        .footer-metrics strong {
+            color: #facc15;
+        }
+
+        /* Animations */
+        @keyframes flash-red {
+            from { background-color: rgba(255, 0, 0, 0.95); }
+            to { background-color: rgba(139, 0, 0, 0.95); }
+        }
+
+        @keyframes flash-yellow-red {
+            from { background-color: rgba(255, 0, 0, 0.98); }
+            to { background-color: rgba(255, 140, 0, 0.98); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header bar -->
+    <header>
+        <div class="line-info">
+            <div id="lineBadge" class="line-badge">LINE: L04</div>
+            <div class="brand-details">
+                <div>Brand: <strong id="brandVal">RACOLD</strong></div>
+                <div>Code: <strong id="codeVal">0422</strong></div>
+            </div>
+        </div>
+        <div id="activeModelTitle" class="active-model-title">
+            CDR DLX 25H 2KW IV-N-3803313
+        </div>
+        <div class="vguard-toggle">
+            <button id="toggleManualMode" class="toggle-btn" onclick="toggleManualMode()">Manual Mode: OFF</button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main>
+        <!-- Left Panel: Manual Configuration Override -->
+        <div class="panel">
+            <div class="panel-title">Manual Brand & Model Selector</div>
+            <div class="manual-selector-panel">
+                <div class="brand-grid">
+                    <button id="brandBtnVguard" class="brand-btn" onclick="selectBrand('V-GUARD')">V-GUARD</button>
+                    <button id="brandBtnUsha" class="brand-btn" onclick="selectBrand('USHA')">USHA</button>
+                </div>
+                <div class="model-list-container">
+                    <div id="modelList">
+                        <p style="text-align: center; color: var(--text-sub); margin-top: 40px;">Select a brand to view models</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center Panel: The Counters and Live Status -->
+        <div class="center-column">
+            <!-- Counters Card -->
+            <div class="counter-container">
+                <div class="counter-label">Total Day Count</div>
+                <div id="mainCounter" class="counter-number">716</div>
+                <div id="gapTimer" class="gap-timer">Scan Gap: 22 Sec</div>
+            </div>
+
+            <!-- Verification Status Bar -->
+            <div id="statusBar" class="status-container">
+                <div class="status-label">Current Verification Status</div>
+                <div id="statusText" class="status-text">Waiting for Next Box</div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Image Display & Day Summary -->
+        <div class="panel">
+            <div class="panel-title">Product Image</div>
+            <div class="image-container">
+                <img id="productImage" src="/images/0422.jpg" alt="Water Heater Product View">
+            </div>
+
+            <div class="panel-title">Day Summary Breakdown</div>
+            <div id="summaryList" class="scrollable-list">
+                <div class="summary-row">
+                    <span>BUONO PRO NXG 25V</span>
+                    <span class="summary-qty">481</span>
+                </div>
+                <div class="summary-row">
+                    <span>CDR DLX 25H 2KW IV-N-3803313</span>
+                    <span class="summary-qty">173</span>
+                </div>
+                <div class="summary-row">
+                    <span>CDR DLX 25V 2KW IVORY-N-3803317</span>
+                    <span class="summary-qty">62</span>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer Bar -->
+    <footer>
+        <div class="footer-metrics">
+            <span>Average Hourly Rate: <strong id="avgHourly">89.50</strong></span>
+            <span>Total Physical Count: <strong id="totalPhysical">720</strong></span>
+        </div>
+        <div id="liveDateTime">
+            Date: 10-Jul-2026 | Time: 04:07:19 PM
+        </div>
+    </footer>
+
+    <!-- Full-Screen Alerts -->
+    <div id="alertOverlay" class="alert-overlay" onclick="closeAlert()">
+        <div id="alertTitle" class="alert-text">!!! ALERT: BARCODE NOT SCANNED !!!</div>
+        <div class="alert-subtext">Click screen or scan next box to dismiss</div>
+    </div>
+
+    <!-- Audio Synthesizer Controls (For alarms without file assets) -->
+    <script>
+        // Set Line ID from URL Query parameter (e.g. ?line=L04)
+        const urlParams = new URLSearchParams(window.location.search);
+        const lineId = urlParams.get('line') || 'L04';
+        document.getElementById('lineBadge').innerText = `LINE: ${lineId}`;
+
+        let isManualMode = false;
+        let selectedBrand = '';
+        let selectedCode = '';
+        let selectedName = '';
+
+        // Web Audio Context for synthesized alarms
+        let audioCtx = null;
+        let alarmInterval = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playBeep(frequency, duration, type = 'sine') {
+            try {
+                initAudio();
+                let osc = audioCtx.createOscillator();
+                let gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.value = frequency;
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch (e) {
+                console.log("Audio play blocked/failed: ", e);
+            }
+        }
+
+        function startSiren() {
+            initAudio();
+            stopSiren();
+            alarmInterval = setInterval(() => {
+                playBeep(880, 0.2, 'sawtooth');
+                setTimeout(() => playBeep(660, 0.2, 'sawtooth'), 250);
+            }, 500);
+        }
+
+        function startDuplicateBuzz() {
+            initAudio();
+            stopSiren();
+            alarmInterval = setInterval(() => {
+                playBeep(120, 0.4, 'triangle');
+            }, 600);
+        }
+
+        function stopSiren() {
+            if (alarmInterval) {
+                clearInterval(alarmInterval);
+                alarmInterval = null;
+            }
+        }
+
+        // SSE Real-Time Updates
+        const sseSource = new EventSource('/stream');
+        sseSource.onmessage = function(event) {
+            const payload = JSON.parse(event.data);
+            if (payload.line_id !== lineId) return; // Filter events for this line
+
+            const type = payload.event_type;
+            const data = payload.data;
+
+            if (type === "BOX_PRESENT") {
+                if (data.status) {
+                    updateStatus("Scanning Box...", "var(--accent-orange)", "rgba(234, 88, 12, 0.1)");
+                }
+            }
+            else if (type === "SCAN_SUCCESS") {
+                stopSiren();
+                closeAlert();
+                
+                // Update top metrics
+                document.getElementById('brandVal').innerText = data.brandname;
+                document.getElementById('codeVal').innerText = data.fgcode;
+                document.getElementById('activeModelTitle').innerText = data.itemname;
+                document.getElementById('productImage').src = `/images/${data.fgcode}.jpg`;
+                
+                // Update counters
+                document.getElementById('mainCounter').innerText = data.scan_count;
+                document.getElementById('totalPhysical').innerText = data.physical_count;
+                document.getElementById('gapTimer').innerText = `Scan Gap: ${data.gap_sec} Sec`;
+                
+                // Update Status Panel
+                updateStatus("VERIFIED OK", "#00e676", "rgba(0,230,118,0.1)");
+                
+                // Redraw Day Summary
+                renderSummary(data.summary);
+                
+                // Play success high beep
+                playBeep(1200, 0.15);
+            }
+            else if (type === "SCAN_DUPLICATE") {
+                stopSiren();
+                // Show Duplicate full-screen alert
+                const overlay = document.getElementById('alertOverlay');
+                overlay.className = "alert-overlay duplicate";
+                document.getElementById('alertTitle').innerText = "!!! DUPLICATE QR CODE !!!";
+                overlay.style.display = "flex";
+                
+                // Update counts
+                document.getElementById('mainCounter').innerText = data.scan_count;
+                document.getElementById('totalPhysical').innerText = data.physical_count;
+                
+                // Update Status Panel
+                updateStatus("DUPLICATE ALREADY SCANNED", "#ffd600", "rgba(255,214,0,0.1)");
+                renderSummary(data.summary);
+
+                // Play duplicate buzz alarm
+                startDuplicateBuzz();
+            }
+            else if (type === "SCAN_FAILURE") {
+                // Show Failure full-screen alert
+                const overlay = document.getElementById('alertOverlay');
+                overlay.className = "alert-overlay";
+                document.getElementById('alertTitle').innerText = "!!! ALERT: BARCODE NOT SCANNED !!!";
+                overlay.style.display = "flex";
+                
+                // Update counts
+                document.getElementById('mainCounter').innerText = data.scan_count;
+                document.getElementById('totalPhysical').innerText = data.physical_count;
+                
+                // Update Status Panel
+                updateStatus("FAILED - MISSED SCAN", "#ff1744", "rgba(255,23,68,0.15)");
+                renderSummary(data.summary);
+
+                // Play sirens
+                startSiren();
+            }
+        };
+
+        function updateStatus(text, textColor, bgColor) {
+            const bar = document.getElementById('statusBar');
+            bar.style.backgroundColor = bgColor;
+            bar.style.borderColor = textColor;
+            const statusTxt = document.getElementById('statusText');
+            statusTxt.innerText = text;
+            statusTxt.style.color = textColor;
+        }
+
+        function renderSummary(summary) {
+            const container = document.getElementById('summaryList');
+            container.innerHTML = '';
+            summary.forEach(row => {
+                const item = document.createElement('div');
+                item.className = 'summary-row';
+                item.innerHTML = `<span>${row.name}</span><span class="summary-qty">${row.qty}</span>`;
+                container.appendChild(item);
+            });
+        }
+
+        function closeAlert() {
+            document.getElementById('alertOverlay').style.display = 'none';
+            stopSiren();
+            updateStatus("Waiting for Next Box", "var(--text-main)", "var(--bg-secondary)");
+        }
+
+        // Live Clock
+        setInterval(() => {
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+            const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+            document.getElementById('liveDateTime').innerText = `Date: ${dateStr} | Time: ${timeStr}`;
+        }, 1000);
+
+        // Manual Selection Logic (Overrides)
+        function toggleManualMode() {
+            isManualMode = !isManualMode;
+            const btn = document.getElementById('toggleManualMode');
+            if (isManualMode) {
+                btn.className = "toggle-btn active";
+                btn.innerText = "Manual Mode: ON";
+            } else {
+                btn.className = "toggle-btn";
+                btn.innerText = "Manual Mode: OFF";
+                // Clear manual settings in backend
+                saveManualOverride(false);
+            }
+        }
+
+        function selectBrand(brand) {
+            selectedBrand = brand;
+            document.getElementById('brandBtnVguard').className = brand === 'V-GUARD' ? 'brand-btn active' : 'brand-btn';
+            document.getElementById('brandBtnUsha').className = brand === 'USHA' ? 'brand-btn active' : 'brand-btn';
+            
+            // Fetch items from backend API
+            fetch(`/api/items?brand=${brand}`)
+                .then(res => res.json())
+                .then(items => {
+                    const list = document.getElementById('modelList');
+                    list.innerHTML = '';
+                    if (items.length === 0) {
+                        list.innerHTML = `<p style="text-align: center; color: var(--text-sub); margin-top: 40px;">No models in DB</p>`;
+                        return;
+                    }
+                    items.forEach(item => {
+                        const b = document.createElement('button');
+                        b.className = 'model-item-btn';
+                        b.innerText = `${item.code} | ${item.name}`;
+                        b.onclick = () => selectModel(item.code, item.name, b);
+                        list.appendChild(b);
+                    });
+                });
+        }
+
+        function selectModel(code, name, btnElement) {
+            selectedCode = code;
+            selectedName = name;
+            
+            // Highlight selected button
+            const buttons = document.querySelectorAll('.model-item-btn');
+            buttons.forEach(b => b.classList.remove('selected'));
+            btnElement.classList.add('selected');
+
+            // Force Manual Mode to ON
+            isManualMode = true;
+            const toggleBtn = document.getElementById('toggleManualMode');
+            toggleBtn.className = "toggle-btn active";
+            toggleBtn.innerText = "Manual Mode: ON";
+
+            // Save settings to backend
+            saveManualOverride(true);
+        }
+
+        function saveManualOverride(enabled) {
+            fetch('/api/manual_override', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    line_id: lineId,
+                    brand: selectedBrand,
+                    code: selectedCode,
+                    name: selectedName,
+                    enabled: enabled
+                })
+            });
+            
+            if (enabled) {
+                document.getElementById('brandVal').innerText = selectedBrand;
+                document.getElementById('codeVal').innerText = selectedCode;
+                document.getElementById('activeModelTitle').innerText = selectedName;
+                document.getElementById('productImage').src = `/images/${selectedCode}.jpg`;
+            }
+        }
+    </script>
+</body>
+</html>
