@@ -36,14 +36,31 @@ def main():
             print(f"[SUCCESS] Connected to {args.port}. Listening for barcode scanner events...")
             
             buffer = ""
+            last_recv_time = 0.0
             while True:
                 if ser.in_waiting > 0:
                     data = ser.read(ser.in_waiting).decode("utf-8", errors="ignore")
                     buffer += data
+                    last_recv_time = time.time()
+                
+                if buffer:
+                    has_newline = "\r" in buffer or "\n" in buffer
+                    silence_timeout = (time.time() - last_recv_time) > 0.15
                     
-                    if "\r" in buffer or "\n" in buffer:
-                        packets = re.split(r"[\r\n]+", buffer)
-                        for pkt in packets[:-1]:
+                    if has_newline or silence_timeout:
+                        if has_newline:
+                            packets = re.split(r"[\r\n]+", buffer)
+                            if not buffer.endswith("\n") and not buffer.endswith("\r") and not silence_timeout:
+                                pkts_to_process = packets[:-1]
+                                buffer = packets[-1]
+                            else:
+                                pkts_to_process = packets
+                                buffer = ""
+                        else:
+                            pkts_to_process = [buffer]
+                            buffer = ""
+                        
+                        for pkt in pkts_to_process:
                             pkt = pkt.strip()
                             if pkt:
                                 timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -59,8 +76,7 @@ def main():
                                         print(f"[{timestamp}] [WARNING] Server error {res.status_code}: {res.text}")
                                 except requests.exceptions.RequestException as req_err:
                                     print(f"[{timestamp}] [ERROR] Network connection failed: {req_err}")
-                                    
-                        buffer = packets[-1]
+                
                 time.sleep(0.05)
                 
         except serial.SerialException as ser_err:
