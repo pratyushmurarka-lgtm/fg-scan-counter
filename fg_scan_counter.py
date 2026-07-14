@@ -463,6 +463,27 @@ class DashboardServer(BaseHTTPRequestHandler):
         parsed_url = urlparse(self.path)
         path = parsed_url.path
         
+        if path == "/api/event":
+            content_length = int(self.headers["Content-Length"])
+            body = self.rfile.read(content_length).decode("utf-8")
+            params = json.loads(body)
+            
+            line_id = params.get("line_id") or params.get("line")
+            clean_data = params.get("data") or params.get("clean_data")
+            
+            if line_id and clean_data:
+                process_incoming_data(line_id, clean_data)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "success"}).encode("utf-8"))
+            else:
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "error", "message": "Missing line_id or data"}).encode("utf-8"))
+            return
+
         if path == "/api/manual_override":
             content_length = int(self.headers["Content-Length"])
             body = self.rfile.read(content_length).decode("utf-8")
