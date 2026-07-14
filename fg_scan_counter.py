@@ -152,10 +152,10 @@ def query_tally_summary(line_id):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Total sessions / physical count
+    # Total sessions / physical count (excluding duplicates)
     cursor.execute("""
         SELECT COUNT(*) FROM inscandata 
-        WHERE date(scandate) = date('now') AND username = ?
+        WHERE date(scandate) = date('now') AND username = ? AND isdup = 0
     """, (line_id,))
     total_physical = cursor.fetchone()[0]
     
