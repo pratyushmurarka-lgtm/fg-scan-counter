@@ -274,8 +274,8 @@
         .manual-selector-panel {
             display: flex;
             flex-direction: column;
-            gap: 12px;
-            height: 100%;
+            gap: 10px;
+            flex: 0 0 auto;
         }
 
         .brand-grid {
@@ -306,11 +306,11 @@
         }
 
         .model-list-container {
-            flex: 1;
             border: 1px solid var(--border);
             border-radius: 12px;
             background-color: var(--bg-primary);
             overflow-y: auto;
+            max-height: 130px;
             padding: 6px;
         }
 
@@ -504,41 +504,46 @@
             border-radius: 8px;
             background-color: var(--bg-primary);
             overflow-y: auto;
-            max-height: 180px;
+            min-height: 220px;
             margin-top: 6px;
         }
         .dup-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.78rem;
+            font-size: 0.82rem;
             color: var(--text-main);
+            table-layout: fixed;
         }
         .dup-table th {
             background-color: var(--bg-secondary);
             color: var(--accent-orange);
             text-align: left;
-            padding: 6px;
+            padding: 8px 6px;
             font-weight: 700;
             border-bottom: 2px solid var(--border);
             position: sticky;
             top: 0;
             z-index: 1;
         }
+        .dup-table th:nth-child(1), .dup-table td:nth-child(1) { width: 22%; }
+        .dup-table th:nth-child(2), .dup-table td:nth-child(2) { width: 34%; }
+        .dup-table th:nth-child(3), .dup-table td:nth-child(3) { width: 24%; }
+        .dup-table th:nth-child(4), .dup-table td:nth-child(4) { width: 20%; }
+
         .dup-table td {
-            padding: 6px;
+            padding: 8px 6px;
             border-bottom: 1px solid var(--border);
-            word-break: break-all;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .dup-table tr:hover {
-            background-color: rgba(220, 38, 38, 0.15);
+            background-color: rgba(220, 38, 38, 0.18);
         }
         .qr-cell {
             font-family: monospace;
-            font-size: 0.72rem;
-            max-width: 140px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+            font-size: 0.75rem;
+            cursor: pointer;
         }
     </style>
 </head>
@@ -566,7 +571,7 @@
         <!-- Left Panel: Manual Configuration Override -->
         <div class="panel">
             <div class="panel-title">Manual Brand & Model Selector</div>
-            <div class="manual-selector-panel" style="flex: 0 0 auto; max-height: 220px;">
+            <div class="manual-selector-panel">
                 <div id="duplicateCard" class="duplicate-card" style="display: none;">
                     <div class="duplicate-card-title">⚠️ DUPLICATE QR SCANNED IN PAST</div>
                     <div class="dup-row"><strong>Item Code:</strong> <span id="dupItemCode">-</span></div>
@@ -578,9 +583,9 @@
                     <button id="brandBtnVguard" class="brand-btn" onclick="selectBrand('V-GUARD')">V-GUARD</button>
                     <button id="brandBtnUsha" class="brand-btn" onclick="selectBrand('USHA')">USHA</button>
                 </div>
-                <div class="model-list-container" style="max-height: 120px;">
+                <div class="model-list-container">
                     <div id="modelList">
-                        <p style="text-align: center; color: var(--text-sub); margin-top: 20px;">Select a brand to view models</p>
+                        <p style="text-align: center; color: var(--text-sub); margin-top: 15px;">Select a brand to view models</p>
                     </div>
                 </div>
             </div>
@@ -588,7 +593,7 @@
             <div class="panel-title" style="margin-top: 15px;">
                 Today's Duplicate Scans Log (<span id="dupCountBadge" style="color: #dc2626; font-weight: 800;">0</span>)
             </div>
-            <div class="dup-log-container" style="flex: 1; overflow-y: auto;">
+            <div class="dup-log-container">
                 <table class="dup-table">
                     <thead>
                         <tr>
