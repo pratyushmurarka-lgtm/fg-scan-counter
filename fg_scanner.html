@@ -445,6 +445,68 @@
             from { background-color: rgba(255, 0, 0, 0.98); }
             to { background-color: rgba(255, 140, 0, 0.98); }
         }
+
+        /* Duplicate Info Card (Left Panel) */
+        .duplicate-card {
+            background-color: rgba(220, 38, 38, 0.1);
+            border: 2px solid #dc2626;
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 12px;
+            font-size: 0.85rem;
+            color: var(--text-main);
+        }
+        .duplicate-card-title {
+            font-weight: 800;
+            color: #dc2626;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 0.9rem;
+        }
+        .dup-row {
+            margin-bottom: 6px;
+            word-break: break-all;
+        }
+        .dup-qr-box {
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border);
+            padding: 6px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.8rem;
+            max-height: 80px;
+            overflow-y: auto;
+            margin-top: 4px;
+        }
+
+        /* Alert Overlay Details Box */
+        .alert-details-box {
+            background-color: rgba(0, 0, 0, 0.5);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 12px;
+            padding: 16px 24px;
+            margin-top: 20px;
+            font-size: 1.3rem;
+            color: #ffffff;
+            text-align: left;
+            max-width: 850px;
+            width: 90%;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+        }
+        .alert-details-box div {
+            margin-bottom: 8px;
+        }
+        .alert-qr-code {
+            background-color: rgba(255, 255, 255, 0.2);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 1.1rem;
+            word-break: break-all;
+            max-height: 120px;
+            overflow-y: auto;
+        }
     </style>
 </head>
 <body>
@@ -472,6 +534,13 @@
         <div class="panel">
             <div class="panel-title">Manual Brand & Model Selector</div>
             <div class="manual-selector-panel">
+                <div id="duplicateCard" class="duplicate-card" style="display: none;">
+                    <div class="duplicate-card-title">⚠️ DUPLICATE QR SCANNED IN PAST</div>
+                    <div class="dup-row"><strong>Item Code:</strong> <span id="dupItemCode">-</span></div>
+                    <div class="dup-row"><strong>Item Name:</strong> <span id="dupItemName">-</span></div>
+                    <div class="dup-row"><strong>Original Scan Date:</strong> <span id="dupScanDate">-</span></div>
+                    <div class="dup-row"><strong>QR Details:</strong> <div id="dupQrDetails" class="dup-qr-box">-</div></div>
+                </div>
                 <div class="brand-grid">
                     <button id="brandBtnVguard" class="brand-btn" onclick="selectBrand('V-GUARD')">V-GUARD</button>
                     <button id="brandBtnUsha" class="brand-btn" onclick="selectBrand('USHA')">USHA</button>
@@ -539,6 +608,13 @@
     <!-- Full-Screen Alerts -->
     <div id="alertOverlay" class="alert-overlay" onclick="closeAlert()">
         <div id="alertTitle" class="alert-text">!!! ALERT: BARCODE NOT SCANNED !!!</div>
+        <div id="alertDetails" class="alert-details-box" style="display: none;">
+            <div><strong>Item Code:</strong> <span id="alertItemCode">-</span></div>
+            <div><strong>Item Name:</strong> <span id="alertItemName">-</span></div>
+            <div><strong>Original Scan Date:</strong> <span id="alertScanDate">-</span></div>
+            <div style="margin-top: 8px;"><strong>QR Code Details:</strong></div>
+            <div id="alertQrDetails" class="alert-qr-code">-</div>
+        </div>
         <div class="alert-subtext">Click screen or scan next box to dismiss</div>
     </div>
 
@@ -646,11 +722,31 @@
             }
             else if (type === "SCAN_DUPLICATE") {
                 stopSiren();
-                // Show Duplicate full-screen alert
+
+                const fgcode = data.fgcode || 'N/A';
+                const itemname = data.itemname || 'N/A';
+                const scandate = data.scandate || 'N/A';
+                const qrDetails = data.qr_details || data.qr || 'N/A';
+
+                // Populate Full-Screen Red Alert Details
                 const overlay = document.getElementById('alertOverlay');
                 overlay.className = "alert-overlay duplicate";
                 document.getElementById('alertTitle').innerText = "!!! DUPLICATE QR CODE !!!";
+                
+                document.getElementById('alertItemCode').innerText = fgcode;
+                document.getElementById('alertItemName').innerText = itemname;
+                document.getElementById('alertScanDate').innerText = scandate;
+                document.getElementById('alertQrDetails').innerText = qrDetails;
+                document.getElementById('alertDetails').style.display = "block";
+                
                 overlay.style.display = "flex";
+                
+                // Populate Left Panel Duplicate Info Card
+                document.getElementById('dupItemCode').innerText = fgcode;
+                document.getElementById('dupItemName').innerText = itemname;
+                document.getElementById('dupScanDate').innerText = scandate;
+                document.getElementById('dupQrDetails').innerText = qrDetails;
+                document.getElementById('duplicateCard').style.display = "block";
                 
                 // Update counts
                 document.getElementById('mainCounter').innerText = data.scan_count;
@@ -668,6 +764,7 @@
                 const overlay = document.getElementById('alertOverlay');
                 overlay.className = "alert-overlay";
                 document.getElementById('alertTitle').innerText = "!!! ALERT: BARCODE NOT SCANNED !!!";
+                document.getElementById('alertDetails').style.display = "none";
                 overlay.style.display = "flex";
                 
                 // Update counts
@@ -705,6 +802,7 @@
 
         function closeAlert() {
             document.getElementById('alertOverlay').style.display = 'none';
+            document.getElementById('alertDetails').style.display = 'none';
             stopSiren();
             updateStatus("Waiting for Next Box", "var(--text-main)", "var(--bg-secondary)");
         }

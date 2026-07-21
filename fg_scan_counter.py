@@ -87,29 +87,48 @@ def check_duplicate(qr):
     conn = get_db_connection()
     cursor = conn.cursor()
     
+    fgcode = None
+    scandate = None
+    qr_details = qr
+    item_name = "Unknown Product"
+    
     # 1. Check local inscandata
-    cursor.execute("SELECT fgcode, scandate FROM inscandata WHERE qrtext = ?", (qr,))
+    cursor.execute("SELECT fgcode, scandate, qrtext FROM inscandata WHERE qrtext = ? OR fgcode = ?", (qr, qr))
     row = cursor.fetchone()
     if row:
+        fgcode = row[0]
+        scandate = row[1]
+        qr_details = row[2] or qr
+    else:
+        # 2. Check ESJOBSCANDATA (using SQLite-safe columns if running on replica)
+        try:
+            cursor.execute("""
+                SELECT ITEM, DATE, ITEM FROM ESJOBSCANDATA 
+                WHERE (ITEM = ? OR ITEM = ?) AND ISDUP = 0
+            """, (qr, qr))
+            row = cursor.fetchone()
+            if row:
+                fgcode = row[0]
+                scandate = row[1]
+                qr_details = row[2] or qr
+        except sqlite3.OperationalError:
+            pass
+            
+    if fgcode:
+        # Resolve Item Name from ItemMaster
+        try:
+            cursor.execute("SELECT name FROM ItemMaster WHERE code = ? OR codestr = ?", (fgcode, fgcode))
+            im_row = cursor.fetchone()
+            if im_row and im_row[0]:
+                item_name = im_row[0]
+        except sqlite3.OperationalError:
+            pass
+            
         conn.close()
-        return True, row[0], row[1]
-        
-    # 2. Check ESJOBSCANDATA (using SQLite-safe columns if running on replica)
-    try:
-        cursor.execute("""
-            SELECT ITEM, DATE FROM ESJOBSCANDATA 
-            WHERE item = ? AND ISDUP = 0
-        """, (qr,))
-        row = cursor.fetchone()
-        if row:
-            conn.close()
-            return True, row[0], row[1]
-    except sqlite3.OperationalError:
-        # Fallback if SQLite table differs from SQL Server schema
-        pass
+        return True, fgcode, item_name, scandate, qr_details
         
     conn.close()
-    return False, None, None
+    return False, None, None, None, None
 
 
 def save_scan(line_id, qr, fgcode, is_dup, prev_scan_date, gap_sec):
@@ -140,7 +159,6 @@ def save_scan(line_id, qr, fgcode, is_dup, prev_scan_date, gap_sec):
             VALUES (?, ?, datetime('now'), ?, 0)
         """, (fgcode, line_id, is_dup))
     except sqlite3.OperationalError:
-        # Fallback for alternative column structures
         pass
         
     conn.commit()
@@ -261,13 +279,17 @@ def process_incoming_data(line_id, clean_data):
         processed_qr = extract_numbers(clean_data)
 
     # Check database duplicates
-    is_dup, dup_code, dup_date = check_duplicate(processed_qr)
+    is_dup, dup_code, dup_name, dup_date, dup_qr_details = check_duplicate(processed_qr)
     
     if is_dup:
         save_scan(line_id, processed_qr, dup_code or "DUP", 1, dup_date, gap_sec)
         phys, scans, summary = query_tally_summary(line_id)
         broadcast_event(line_id, "SCAN_DUPLICATE", {
             "qr": processed_qr,
+            "fgcode": dup_code or "Unknown Code",
+            "itemname": dup_name or "Unknown Item",
+            "scandate": str(dup_date) if dup_date else "N/A",
+            "qr_details": dup_qr_details or processed_qr,
             "physical_count": phys,
             "scan_count": scans,
             "summary": summary
