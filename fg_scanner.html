@@ -566,7 +566,7 @@
         <!-- Left Panel: Manual Configuration Override -->
         <div class="panel">
             <div class="panel-title">Manual Brand & Model Selector</div>
-            <div class="manual-selector-panel">
+            <div class="manual-selector-panel" style="flex: 0 0 auto; max-height: 220px;">
                 <div id="duplicateCard" class="duplicate-card" style="display: none;">
                     <div class="duplicate-card-title">⚠️ DUPLICATE QR SCANNED IN PAST</div>
                     <div class="dup-row"><strong>Item Code:</strong> <span id="dupItemCode">-</span></div>
@@ -578,11 +578,30 @@
                     <button id="brandBtnVguard" class="brand-btn" onclick="selectBrand('V-GUARD')">V-GUARD</button>
                     <button id="brandBtnUsha" class="brand-btn" onclick="selectBrand('USHA')">USHA</button>
                 </div>
-                <div class="model-list-container">
+                <div class="model-list-container" style="max-height: 120px;">
                     <div id="modelList">
-                        <p style="text-align: center; color: var(--text-sub); margin-top: 40px;">Select a brand to view models</p>
+                        <p style="text-align: center; color: var(--text-sub); margin-top: 20px;">Select a brand to view models</p>
                     </div>
                 </div>
+            </div>
+
+            <div class="panel-title" style="margin-top: 15px;">
+                Today's Duplicate Scans Log (<span id="dupCountBadge" style="color: #dc2626; font-weight: 800;">0</span>)
+            </div>
+            <div class="dup-log-container" style="flex: 1; overflow-y: auto;">
+                <table class="dup-table">
+                    <thead>
+                        <tr>
+                            <th>Code</th>
+                            <th>Item Name</th>
+                            <th>Original Scan</th>
+                            <th>QR Details</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dupTableBody">
+                        <tr><td colspan="4" style="text-align:center; color: var(--text-sub); padding: 12px;">No duplicate scans today</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -610,30 +629,11 @@
             </div>
 
             <div class="panel-title">Day Summary Breakdown</div>
-            <div id="summaryList" class="scrollable-list" style="max-height: 140px;">
+            <div id="summaryList" class="scrollable-list">
                 <div class="summary-row">
                     <span>BUONO PRO NXG 25V</span>
                     <span class="summary-qty">481</span>
                 </div>
-            </div>
-
-            <div class="panel-title" style="margin-top: 10px;">
-                Today's Duplicate Scans Log (<span id="dupCountBadge" style="color: #dc2626; font-weight: 800;">0</span>)
-            </div>
-            <div class="dup-log-container">
-                <table class="dup-table">
-                    <thead>
-                        <tr>
-                            <th>Code</th>
-                            <th>Item Name</th>
-                            <th>Original Scan</th>
-                            <th>QR Details</th>
-                        </tr>
-                    </thead>
-                    <tbody id="dupTableBody">
-                        <tr><td colspan="4" style="text-align:center; color: var(--text-sub); padding: 12px;">No duplicate scans today</td></tr>
-                    </tbody>
-                </table>
             </div>
         </div>
     </main>
