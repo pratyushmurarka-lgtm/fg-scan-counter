@@ -497,15 +497,48 @@
         .alert-details-box div {
             margin-bottom: 8px;
         }
-        .alert-qr-code {
-            background-color: rgba(255, 255, 255, 0.2);
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-family: monospace;
-            font-size: 1.1rem;
-            word-break: break-all;
-            max-height: 120px;
+        /* Duplicate Table Styling */
+        .dup-log-container {
+            flex: 1;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background-color: var(--bg-primary);
             overflow-y: auto;
+            max-height: 180px;
+            margin-top: 6px;
+        }
+        .dup-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.78rem;
+            color: var(--text-main);
+        }
+        .dup-table th {
+            background-color: var(--bg-secondary);
+            color: var(--accent-orange);
+            text-align: left;
+            padding: 6px;
+            font-weight: 700;
+            border-bottom: 2px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        .dup-table td {
+            padding: 6px;
+            border-bottom: 1px solid var(--border);
+            word-break: break-all;
+        }
+        .dup-table tr:hover {
+            background-color: rgba(220, 38, 38, 0.15);
+        }
+        .qr-cell {
+            font-family: monospace;
+            font-size: 0.72rem;
+            max-width: 140px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
     </style>
 </head>
@@ -577,19 +610,30 @@
             </div>
 
             <div class="panel-title">Day Summary Breakdown</div>
-            <div id="summaryList" class="scrollable-list">
+            <div id="summaryList" class="scrollable-list" style="max-height: 140px;">
                 <div class="summary-row">
                     <span>BUONO PRO NXG 25V</span>
                     <span class="summary-qty">481</span>
                 </div>
-                <div class="summary-row">
-                    <span>CDR DLX 25H 2KW IV-N-3803313</span>
-                    <span class="summary-qty">173</span>
-                </div>
-                <div class="summary-row">
-                    <span>CDR DLX 25V 2KW IVORY-N-3803317</span>
-                    <span class="summary-qty">62</span>
-                </div>
+            </div>
+
+            <div class="panel-title" style="margin-top: 10px;">
+                Today's Duplicate Scans Log (<span id="dupCountBadge" style="color: #dc2626; font-weight: 800;">0</span>)
+            </div>
+            <div class="dup-log-container">
+                <table class="dup-table">
+                    <thead>
+                        <tr>
+                            <th>Code</th>
+                            <th>Item Name</th>
+                            <th>Original Scan</th>
+                            <th>QR Details</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dupTableBody">
+                        <tr><td colspan="4" style="text-align:center; color: var(--text-sub); padding: 12px;">No duplicate scans today</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </main>
@@ -714,8 +758,9 @@
                 // Update Status Panel
                 updateStatus("VERIFIED OK", "#00e676", "rgba(0,230,118,0.1)");
                 
-                // Redraw Day Summary
+                // Redraw Day Summary & Duplicates
                 renderSummary(data.summary);
+                if (data.duplicate_log) renderDuplicateLog(data.duplicate_log);
                 
                 // Play success high beep
                 playBeep(1200, 0.15);
@@ -748,13 +793,14 @@
                 document.getElementById('dupQrDetails').innerText = qrDetails;
                 document.getElementById('duplicateCard').style.display = "block";
                 
-                // Update counts
+                // Update counts & logs
                 document.getElementById('mainCounter').innerText = data.scan_count;
                 document.getElementById('totalPhysical').innerText = data.physical_count;
                 
                 // Update Status Panel
                 updateStatus("DUPLICATE ALREADY SCANNED", "#ffd600", "rgba(255,214,0,0.1)");
                 renderSummary(data.summary);
+                if (data.duplicate_log) renderDuplicateLog(data.duplicate_log);
 
                 // Play duplicate buzz alarm
                 startDuplicateBuzz();
@@ -767,18 +813,58 @@
                 document.getElementById('alertDetails').style.display = "none";
                 overlay.style.display = "flex";
                 
-                // Update counts
+                // Update counts & logs
                 document.getElementById('mainCounter').innerText = data.scan_count;
                 document.getElementById('totalPhysical').innerText = data.physical_count;
                 
                 // Update Status Panel
                 updateStatus("FAILED - MISSED SCAN", "#ff1744", "rgba(255,23,68,0.15)");
                 renderSummary(data.summary);
+                if (data.duplicate_log) renderDuplicateLog(data.duplicate_log);
 
                 // Play sirens
                 startSiren();
             }
         };
+
+        function renderDuplicateLog(dupLog) {
+            const tbody = document.getElementById('dupTableBody');
+            const badge = document.getElementById('dupCountBadge');
+            if (!tbody) return;
+            
+            tbody.innerHTML = '';
+            if (!dupLog || dupLog.length === 0) {
+                badge.innerText = '0';
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: var(--text-sub); padding: 12px;">No duplicate scans today</td></tr>';
+                return;
+            }
+            
+            badge.innerText = dupLog.length;
+            dupLog.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${row.fgcode}</strong></td>
+                    <td>${row.name}</td>
+                    <td style="white-space: nowrap;">${row.prev_date}</td>
+                    <td class="qr-cell" title="${row.qr}">${row.qr}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function fetchInitialSummary() {
+            fetch(`/api/summary?line=${lineId}`)
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('totalPhysical').innerText = data.physical_count;
+                    renderSummary(data.summary);
+                    renderDuplicateLog(data.duplicate_log);
+                })
+                .catch(err => console.error("Failed to fetch initial summary:", err));
+        }
+
+        // Fetch initial data on load
+        fetchInitialSummary();
 
         function updateStatus(text, textColor, bgColor) {
             const bar = document.getElementById('statusBar');

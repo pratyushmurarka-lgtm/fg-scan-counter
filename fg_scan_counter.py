@@ -165,6 +165,35 @@ def save_scan(line_id, qr, fgcode, is_dup, prev_scan_date, gap_sec):
     conn.close()
 
 
+def query_duplicate_log(line_id):
+    """Get all duplicate scans recorded today for a line."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    dup_rows = []
+    try:
+        cursor.execute("""
+            SELECT ims.fgcode, COALESCE(im.name, 'Unknown Item'), ims.prevscandate, ims.qrtext, ims.scandate
+            FROM inscandata ims
+            LEFT JOIN ItemMaster im ON im.code = ims.fgcode OR im.codestr = ims.fgcode
+            WHERE date(ims.scandate) = date('now')
+              AND ims.username = ?
+              AND ims.isdup = 1
+            ORDER BY ims.id DESC
+        """, (line_id,))
+        for r in cursor.fetchall():
+            dup_rows.append({
+                "fgcode": r[0] or "N/A",
+                "name": r[1] or "N/A",
+                "prev_date": str(r[2]) if r[2] else "N/A",
+                "qr": r[3] or "N/A",
+                "dup_date": str(r[4]) if r[4] else "N/A"
+            })
+    except Exception as e:
+        print("Error querying duplicate log:", e)
+    conn.close()
+    return dup_rows
+
+
 def query_tally_summary(line_id):
     """Get today's total physical count vs successful scans count for a line."""
     conn = get_db_connection()
@@ -205,7 +234,8 @@ def query_tally_summary(line_id):
         pass
         
     conn.close()
-    return total_physical, total_scans, summary_rows
+    dup_log = query_duplicate_log(line_id)
+    return total_physical, total_scans, summary_rows, dup_log
 
 
 # --- Session State Machine Processor ---
@@ -252,12 +282,13 @@ def process_incoming_data(line_id, clean_data):
             # Save failed scan to DB
             save_scan(line_id, "NOREAD", "NOREAD", 0, None, gap_sec)
             
-            phys, scans, summary = query_tally_summary(line_id)
+            phys, scans, summary, dup_log = query_tally_summary(line_id)
             broadcast_event(line_id, "SCAN_FAILURE", {
                 "message": "BARCODE NOT SCANNED",
                 "physical_count": phys,
                 "scan_count": scans,
-                "summary": summary
+                "summary": summary,
+                "duplicate_log": dup_log
             })
         return
 
@@ -283,7 +314,7 @@ def process_incoming_data(line_id, clean_data):
     
     if is_dup:
         save_scan(line_id, processed_qr, dup_code or "DUP", 1, dup_date, gap_sec)
-        phys, scans, summary = query_tally_summary(line_id)
+        phys, scans, summary, dup_log = query_tally_summary(line_id)
         broadcast_event(line_id, "SCAN_DUPLICATE", {
             "qr": processed_qr,
             "fgcode": dup_code or "Unknown Code",
@@ -292,7 +323,8 @@ def process_incoming_data(line_id, clean_data):
             "qr_details": dup_qr_details or processed_qr,
             "physical_count": phys,
             "scan_count": scans,
-            "summary": summary
+            "summary": summary,
+            "duplicate_log": dup_log
         })
         return
 
@@ -339,7 +371,7 @@ def process_incoming_data(line_id, clean_data):
     save_scan(line_id, processed_qr, fgcode, 0, None, gap_sec)
     state["scanned_this_session"] = True
 
-    phys, scans, summary = query_tally_summary(line_id)
+    phys, scans, summary, dup_log = query_tally_summary(line_id)
     broadcast_event(line_id, "SCAN_SUCCESS", {
         "qr": processed_qr,
         "fgcode": fgcode,
@@ -348,7 +380,8 @@ def process_incoming_data(line_id, clean_data):
         "gap_sec": gap_sec,
         "physical_count": phys,
         "scan_count": scans,
-        "summary": summary
+        "summary": summary,
+        "duplicate_log": dup_log
     })
 
 
@@ -418,6 +451,23 @@ class DashboardServer(BaseHTTPRequestHandler):
                     self.wfile.write(f.read().encode("utf-8"))
             else:
                 self.wfile.write(b"<h1>Error: fg_scanner.html file not found!</h1>")
+            return
+
+        if path == "/api/summary":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            
+            query = parse_qs(parsed_url.query)
+            line = query.get("line", ["L04"])[0]
+            phys, scans, summary, dup_log = query_tally_summary(line)
+            
+            self.wfile.write(json.dumps({
+                "physical_count": phys,
+                "scan_count": scans,
+                "summary": summary,
+                "duplicate_log": dup_log
+            }).encode("utf-8"))
             return
 
         if path == "/api/items":
