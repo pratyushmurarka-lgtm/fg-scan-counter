@@ -337,6 +337,23 @@
             font-weight: 700;
         }
 
+        .change-model-btn {
+            width: 100%;
+            margin-top: 10px;
+            padding: 8px 12px;
+            background-color: transparent;
+            border: 1px dashed #00b0ff;
+            color: #00b0ff;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: all 0.2s ease;
+        }
+        .change-model-btn:hover {
+            background-color: rgba(0, 176, 255, 0.1);
+        }
+
         /* Product Snapshot Image container */
         .image-container {
             flex: 1;
@@ -715,6 +732,8 @@
             }
         }
 
+        let currentBrandItems = [];
+
         function selectBrand(brand) {
             selectedBrand = brand;
             document.getElementById('brandBtnVguard').className = brand === 'V-GUARD' ? 'brand-btn active' : 'brand-btn';
@@ -724,30 +743,57 @@
             fetch(`/api/items?brand=${brand}`)
                 .then(res => res.json())
                 .then(items => {
-                    const list = document.getElementById('modelList');
-                    list.innerHTML = '';
-                    if (items.length === 0) {
-                        list.innerHTML = `<p style="text-align: center; color: var(--text-sub); margin-top: 40px;">No models in DB</p>`;
-                        return;
+                    currentBrandItems = items;
+                    if (selectedCode && items.some(it => it.code === selectedCode)) {
+                        renderSelectedModelOnly();
+                    } else {
+                        renderModelList(items);
                     }
-                    items.forEach(item => {
-                        const b = document.createElement('button');
-                        b.className = 'model-item-btn';
-                        b.innerText = `${item.code} | ${item.name}`;
-                        b.onclick = () => selectModel(item.code, item.name, b);
-                        list.appendChild(b);
-                    });
                 });
         }
 
-        function selectModel(code, name, btnElement) {
+        function renderModelList(items) {
+            const list = document.getElementById('modelList');
+            list.innerHTML = '';
+            if (!items || items.length === 0) {
+                list.innerHTML = `<p style="text-align: center; color: var(--text-sub); margin-top: 40px;">No models in DB</p>`;
+                return;
+            }
+            items.forEach(item => {
+                const b = document.createElement('button');
+                b.className = 'model-item-btn' + (item.code === selectedCode ? ' selected' : '');
+                b.innerText = `${item.code} | ${item.name}`;
+                b.onclick = () => selectModel(item.code, item.name);
+                list.appendChild(b);
+            });
+        }
+
+        function showAllModels() {
+            renderModelList(currentBrandItems);
+        }
+
+        function renderSelectedModelOnly() {
+            const list = document.getElementById('modelList');
+            list.innerHTML = '';
+            
+            const b = document.createElement('button');
+            b.className = 'model-item-btn selected';
+            b.innerText = `${selectedCode} | ${selectedName}`;
+            list.appendChild(b);
+
+            const changeBtn = document.createElement('button');
+            changeBtn.className = 'change-model-btn';
+            changeBtn.innerText = '🔄 Change Model';
+            changeBtn.onclick = showAllModels;
+            list.appendChild(changeBtn);
+        }
+
+        function selectModel(code, name) {
             selectedCode = code;
             selectedName = name;
             
-            // Highlight selected button
-            const buttons = document.querySelectorAll('.model-item-btn');
-            buttons.forEach(b => b.classList.remove('selected'));
-            btnElement.classList.add('selected');
+            // Render ONLY the selected model in the left panel
+            renderSelectedModelOnly();
 
             // Force Manual Mode to ON
             isManualMode = true;
