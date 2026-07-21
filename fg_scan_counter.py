@@ -414,7 +414,7 @@ class DashboardServer(BaseHTTPRequestHandler):
             
             html_path = "fg_scanner.html"
             if os.path.exists(html_path):
-                with open(html_path, "r") as f:
+                with open(html_path, "r", encoding="utf-8") as f:
                     self.wfile.write(f.read().encode("utf-8"))
             else:
                 self.wfile.write(b"<h1>Error: fg_scanner.html file not found!</h1>")
