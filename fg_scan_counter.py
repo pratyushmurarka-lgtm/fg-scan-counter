@@ -117,7 +117,7 @@ def check_duplicate(qr):
     if fgcode:
         # Resolve Item Name from ItemMaster
         try:
-            cursor.execute("SELECT name FROM ItemMaster WHERE code = ? OR codestr = ?", (fgcode, fgcode))
+            cursor.execute("SELECT name FROM ItemMaster WHERE code = ? OR codestr = ? OR OtherDes = ?", (fgcode, fgcode, fgcode))
             im_row = cursor.fetchone()
             if im_row and im_row[0]:
                 item_name = im_row[0]
@@ -342,33 +342,40 @@ def process_incoming_data(line_id, clean_data):
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute("SELECT code, name, CodeStr FROM ItemMaster")
+            cursor.execute("SELECT code, name, CodeStr, OtherDes FROM ItemMaster")
             items = cursor.fetchall()
             for it in items:
                 code, name, codestr = it[0], it[1], it[2] if len(it) > 2 else ""
+                otherdes = it[3] if len(it) > 3 else ""
                 
-                # Check match against codestr (long identifier) or exact/word-boundary code
-                if codestr and len(str(codestr)) >= 4 and str(codestr) in clean_data:
+                # 1. Match against OtherDes (primary mapping column)
+                if otherdes and len(str(otherdes)) >= 3 and str(otherdes) in clean_data:
                     fgcode = code
                     itemname = name
-                    brandname = "Detected Brand"
                     break
+                # 2. Match against CodeStr (alternative identifier)
+                elif codestr and len(str(codestr)) >= 4 and str(codestr) in clean_data:
+                    fgcode = code
+                    itemname = name
+                    break
+                # 3. Match against exact numeric code
                 elif code and str(code) == clean_data:
                     fgcode = code
                     itemname = name
-                    brandname = "Detected Brand"
                     break
-                elif name:
-                    # Match any 7-digit model suffix in name (e.g., '3803311' for CDR DLX 15V)
-                    match = re.search(r'\d{7}', name)
-                    if match and match.group(0) in clean_data:
-                        fgcode = code
-                        itemname = name
-                        brandname = "Detected Brand"
-                        break
         except sqlite3.OperationalError:
             pass
         conn.close()
+
+    if fgcode:
+        # Resolve brand name dynamically from the resolved item name
+        upper_name = itemname.upper()
+        if "V-GUARD" in upper_name or "VGUARD" in upper_name:
+            brandname = "V-GUARD"
+        elif "USHA" in upper_name:
+            brandname = "USHA"
+        elif "RACOLD" in upper_name or "CDR" in upper_name or "BUONO" in upper_name:
+            brandname = "RACOLD"
 
     if not fgcode:
         # Auto-resolve failed, broadcast request for manual override selection
