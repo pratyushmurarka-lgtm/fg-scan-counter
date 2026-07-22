@@ -24,6 +24,28 @@ class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
 line_states = {}
 state_lock = threading.Lock()
 
+STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "line_states.json")
+
+def load_states():
+    global line_states
+    if os.path.exists(STATE_FILE):
+        try:
+            with open(STATE_FILE, "r") as f:
+                line_states = json.load(f)
+            print("[INFO] Persistent line states loaded from line_states.json.")
+        except Exception as e:
+            print("[WARNING] Could not load persistent line states:", e)
+            line_states = {}
+    else:
+        line_states = {}
+
+def save_states():
+    try:
+        with open(STATE_FILE, "w") as f:
+            json.dump(line_states, f, indent=4)
+    except Exception as e:
+        print("[WARNING] Could not save persistent line states:", e)
+
 # Event listeners (clients connected to SSE streams)
 clients = []
 clients_lock = threading.Lock()
@@ -263,12 +285,14 @@ def process_incoming_data(line_id, clean_data):
     if clean_data == "[START]":
         state["box_present"] = True
         state["scanned_this_session"] = False
+        save_states()
         broadcast_event(line_id, "BOX_PRESENT", {"status": True})
         return
 
     # 2. Handle END of presence session
     if clean_data == "[END]":
         state["box_present"] = False
+        save_states()
         broadcast_event(line_id, "BOX_PRESENT", {"status": False})
         
         # If box cleared but no successful scan occurred
@@ -303,6 +327,7 @@ def process_incoming_data(line_id, clean_data):
     if state["last_scan_time"] > 0:
         gap_sec = int(curr_time - state["last_scan_time"])
     state["last_scan_time"] = curr_time
+    save_states()
 
     # Clean V-Guard serial if manual override is active
     processed_qr = clean_data
@@ -600,6 +625,7 @@ class DashboardServer(BaseHTTPRequestHandler):
                 state["manual_brand"] = brand
                 state["manual_fgcode"] = code
                 state["manual_itemname"] = itemname
+                save_states()
                 
             print(f"[INFO] Manual override set on {line_id}: Enabled={enabled}, Brand={brand}, Code={code}")
             
@@ -622,6 +648,7 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=str, help="Serial COM port for single line mode (e.g. COM4)")
     args = parser.parse_args()
     
+    load_states()
     init_database()
     
     threading.Thread(target=start_http_server, daemon=True).start()
