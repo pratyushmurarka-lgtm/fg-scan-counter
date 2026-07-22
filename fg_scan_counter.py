@@ -358,6 +358,14 @@ def process_incoming_data(line_id, clean_data):
                     itemname = name
                     brandname = "Detected Brand"
                     break
+                elif name:
+                    # Match any 7-digit model suffix in name (e.g., '3803311' for CDR DLX 15V)
+                    match = re.search(r'\d{7}', name)
+                    if match and match.group(0) in clean_data:
+                        fgcode = code
+                        itemname = name
+                        brandname = "Detected Brand"
+                        break
         except sqlite3.OperationalError:
             pass
         conn.close()
