@@ -5,14 +5,65 @@ import argparse
 import re
 import requests
 import serial
+import os
+import json
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 DEFAULT_BAUD = 115200
 
+def get_line_from_config():
+    config_path = "C:\\dbconfig.txt"
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    if "=" in line:
+                        k, v = line.split("=", 1)
+                        k = k.strip().upper()
+                        v = v.strip()
+                        if k == "LIVE_LINENO":
+                            return v.upper()
+        except Exception as e:
+            print(f"[WARNING] Error reading dbconfig.txt: {e}")
+    return "L04"
+
+class LocalConfigHandler(BaseHTTPRequestHandler):
+    def log_message(self, format, *args):
+        pass  # Suppress console log spam
+
+    def do_GET(self):
+        if self.path == "/api/line":
+            line_id = get_line_from_config()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps({"line": line_id}).encode("utf-8"))
+            return
+        self.send_response(404)
+        self.end_headers()
+
+def start_local_server():
+    try:
+        server = HTTPServer(("127.0.0.1", 5002), LocalConfigHandler)
+        server.serve_forever()
+    except Exception as e:
+        print(f"[WARNING] Could not start local config API server: {e}")
+
 def main():
+    # Start local config API server in daemon thread
+    threading.Thread(target=start_local_server, daemon=True).start()
+
     parser = argparse.ArgumentParser(description="INTECH FG Scanner Serial Port Forwarder")
     parser.add_argument("--port", type=str, default="COM3", help="Serial COM port of scanner (e.g. COM3)")
     parser.add_argument("--baud", type=int, default=DEFAULT_BAUD, help="Baud rate (default: 115200)")
-    parser.add_argument("--line", type=str, default="L04", help="Line ID (e.g. L04)")
+    
+    detected_line = get_line_from_config()
+    parser.add_argument("--line", type=str, default=detected_line, help="Line ID (e.g. L04)")
     parser.add_argument("--server", type=str, default="http://localhost:5001", help="Central server URL (e.g. http://192.168.1.218:5001)")
     args = parser.parse_args()
 

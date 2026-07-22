@@ -264,6 +264,7 @@ def query_tally_summary(line_id):
 def process_incoming_data(line_id, clean_data):
     """Handle scanner serial buffer stream."""
     global line_states
+    line_id = line_id.upper()
     
     with state_lock:
         if line_id not in line_states:
@@ -499,7 +500,7 @@ class DashboardServer(BaseHTTPRequestHandler):
             self.end_headers()
             
             query = parse_qs(parsed_url.query)
-            line = query.get("line", ["L04"])[0]
+            line = query.get("line", ["L04"])[0].upper()
             phys, scans, summary, dup_log = query_tally_summary(line)
             
             self.wfile.write(json.dumps({
@@ -580,7 +581,7 @@ class DashboardServer(BaseHTTPRequestHandler):
             body = self.rfile.read(content_length).decode("utf-8")
             params = json.loads(body)
             
-            line_id = params.get("line_id") or params.get("line")
+            line_id = (params.get("line_id") or params.get("line") or "").upper()
             clean_data = params.get("data") or params.get("clean_data")
             
             if line_id and clean_data:
@@ -601,7 +602,7 @@ class DashboardServer(BaseHTTPRequestHandler):
             body = self.rfile.read(content_length).decode("utf-8")
             params = json.loads(body)
             
-            line_id = params.get("line_id")
+            line_id = (params.get("line_id") or "").upper()
             brand = params.get("brand")
             code = params.get("code")
             itemname = params.get("name", "")

@@ -669,10 +669,7 @@
 
     <!-- Audio Synthesizer Controls (For alarms without file assets) -->
     <script>
-        // Set Line ID from URL Query parameter (e.g. ?line=L04)
-        const urlParams = new URLSearchParams(window.location.search);
-        const lineId = urlParams.get('line') || 'L04';
-        document.getElementById('lineBadge').innerText = `LINE: ${lineId}`;
+        let lineId = 'L04';
 
         let isManualMode = false;
         let selectedBrand = '';
@@ -732,12 +729,15 @@
         }
 
         // SSE Real-Time Updates
-        const sseSource = new EventSource('/stream');
-        sseSource.onmessage = function(event) {
-            const payload = JSON.parse(event.data);
-            if (payload.line_id !== lineId) return; // Filter events for this line
+        let sseSource = null;
+        function connectSSE() {
+            if (sseSource) sseSource.close();
+            sseSource = new EventSource('/stream');
+            sseSource.onmessage = function(event) {
+                const payload = JSON.parse(event.data);
+                if (payload.line_id !== lineId) return; // Filter events for this line
 
-            const type = payload.event_type;
+                const type = payload.event_type;
             const data = payload.data;
 
             if (type === "BOX_PRESENT") {
@@ -830,7 +830,7 @@
                 // Play sirens
                 startSiren();
             }
-        };
+        }
 
         function renderDuplicateLog(dupLog) {
             const tbody = document.getElementById('dupTableBody');
@@ -868,8 +868,41 @@
                 .catch(err => console.error("Failed to fetch initial summary:", err));
         }
 
-        // Fetch initial data on load
-        fetchInitialSummary();
+        function initializeLine() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const paramLine = urlParams.get('line');
+            
+            if (paramLine) {
+                lineId = paramLine.toUpperCase();
+                document.getElementById('lineBadge').innerText = `LINE: ${lineId}`;
+                fetchInitialSummary();
+                connectSSE();
+            } else {
+                // Fetch from local serial forwarder API on port 5002
+                fetch('http://127.0.0.1:5002/api/line')
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.line) {
+                            lineId = data.line.toUpperCase();
+                        } else {
+                            lineId = 'L04';
+                        }
+                        document.getElementById('lineBadge').innerText = `LINE: ${lineId}`;
+                        fetchInitialSummary();
+                        connectSSE();
+                    })
+                    .catch(err => {
+                        console.log("Local config API not running, defaulting to L04:", err);
+                        lineId = 'L04';
+                        document.getElementById('lineBadge').innerText = `LINE: ${lineId}`;
+                        fetchInitialSummary();
+                        connectSSE();
+                    });
+            }
+        }
+
+        // Fetch initial data & connect stream on load
+        initializeLine();
 
         function updateStatus(text, textColor, bgColor) {
             const bar = document.getElementById('statusBar');
