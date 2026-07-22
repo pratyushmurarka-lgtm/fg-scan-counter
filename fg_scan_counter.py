@@ -93,7 +93,7 @@ def check_duplicate(qr):
     item_name = "Unknown Product"
     
     # 1. Check local inscandata
-    cursor.execute("SELECT fgcode, scandate, qrtext FROM inscandata WHERE qrtext = ? OR fgcode = ?", (qr, qr))
+    cursor.execute("SELECT fgcode, datetime(scandate, 'localtime'), qrtext FROM inscandata WHERE qrtext = ? OR fgcode = ?", (qr, qr))
     row = cursor.fetchone()
     if row:
         fgcode = row[0]
@@ -103,7 +103,7 @@ def check_duplicate(qr):
         # 2. Check ESJOBSCANDATA (using SQLite-safe columns if running on replica)
         try:
             cursor.execute("""
-                SELECT ITEM, DATE, ITEM FROM ESJOBSCANDATA 
+                SELECT ITEM, datetime(DATE, 'localtime'), ITEM FROM ESJOBSCANDATA 
                 WHERE (ITEM = ? OR ITEM = ?) AND ISDUP = 0
             """, (qr, qr))
             row = cursor.fetchone()
@@ -172,7 +172,7 @@ def query_duplicate_log(line_id):
     dup_rows = []
     try:
         cursor.execute("""
-            SELECT ims.fgcode, COALESCE(im.name, 'Unknown Item'), ims.prevscandate, ims.qrtext, ims.scandate
+            SELECT ims.fgcode, COALESCE(im.name, 'Unknown Item'), ims.prevscandate, ims.qrtext, datetime(ims.scandate, 'localtime')
             FROM inscandata ims
             LEFT JOIN ItemMaster im ON im.code = ims.fgcode OR im.codestr = ims.fgcode
             WHERE date(ims.scandate) = date('now')
