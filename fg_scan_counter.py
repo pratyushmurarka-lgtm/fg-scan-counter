@@ -283,6 +283,45 @@ def query_tally_summary(line_id):
     return total_physical, total_scans, summary_rows, dup_log
 
 
+def query_last_scan_info(line_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    last_scan = None
+    try:
+        # Get last successful (non-duplicate, non-NOREAD) scan for this line today
+        cursor.execute("""
+            SELECT ims.fgcode, im.name
+            FROM inscandata ims
+            JOIN ItemMaster im ON im.code = ims.fgcode OR im.codestr = ims.fgcode
+            WHERE ims.username = ?
+              AND ims.qrtext != 'NOREAD'
+              AND ims.isdup = 0
+            ORDER BY ims.id DESC
+            LIMIT 1
+        """, (line_id,))
+        row = cursor.fetchone()
+        if row:
+            fgcode, itemname = row[0], row[1]
+            # Resolve brand
+            brandname = "Unknown Brand"
+            upper_name = itemname.upper()
+            if "V-GUARD" in upper_name or "VGUARD" in upper_name:
+                brandname = "V-GUARD"
+            elif "USHA" in upper_name:
+                brandname = "USHA"
+            elif "RACOLD" in upper_name or "CDR" in upper_name or "BUONO" in upper_name:
+                brandname = "RACOLD"
+            last_scan = {
+                "fgcode": fgcode,
+                "itemname": itemname,
+                "brandname": brandname
+            }
+    except Exception as e:
+        print("Error querying last scan info:", e)
+    conn.close()
+    return last_scan
+
+
 # --- Session State Machine Processor ---
 def process_incoming_data(line_id, clean_data):
     """Handle scanner serial buffer stream."""
@@ -540,11 +579,29 @@ class DashboardServer(BaseHTTPRequestHandler):
             line = query.get("line", ["L04"])[0].upper()
             phys, scans, summary, dup_log = query_tally_summary(line)
             
+            # Resolve last scan or manual selection info
+            last_scan = None
+            with state_lock:
+                state = line_states.get(line)
+                if state and state.get("manual_mode") and state.get("manual_fgcode"):
+                    last_scan = {
+                        "fgcode": state["manual_fgcode"],
+                        "itemname": state["manual_itemname"],
+                        "brandname": state["manual_brand"],
+                        "manual_mode": True
+                    }
+            
+            if not last_scan:
+                last_scan = query_last_scan_info(line)
+                if last_scan:
+                    last_scan["manual_mode"] = False
+                    
             self.wfile.write(json.dumps({
                 "physical_count": phys,
                 "scan_count": scans,
                 "summary": summary,
-                "duplicate_log": dup_log
+                "duplicate_log": dup_log,
+                "last_scan": last_scan
             }).encode("utf-8"))
             return
 

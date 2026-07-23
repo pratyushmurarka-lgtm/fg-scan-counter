@@ -865,6 +865,36 @@
                     document.getElementById('totalPhysical').innerText = data.physical_count;
                     renderSummary(data.summary);
                     renderDuplicateLog(data.duplicate_log);
+                    
+                    // Update header with last scan info if available
+                    if (data.last_scan) {
+                        document.getElementById('brandVal').innerText = data.last_scan.brandname;
+                        document.getElementById('codeVal').innerText = data.last_scan.fgcode;
+                        document.getElementById('activeModelTitle').innerText = data.last_scan.itemname;
+                        document.getElementById('productImage').src = `/images/${data.last_scan.fgcode}.jpg`;
+                        
+                        // Sync manual mode toggle state button
+                        isManualMode = data.last_scan.manual_mode || false;
+                        const btn = document.getElementById('toggleManualMode');
+                        if (isManualMode) {
+                            btn.className = "toggle-btn active";
+                            btn.innerText = "Manual Mode: ON";
+                        } else {
+                            btn.className = "toggle-btn";
+                            btn.innerText = "Manual Mode: OFF";
+                        }
+                    } else {
+                        // Reset to wait state instead of displaying hardcoded placeholders
+                        document.getElementById('brandVal').innerText = "-";
+                        document.getElementById('codeVal').innerText = "-";
+                        document.getElementById('activeModelTitle').innerText = "Waiting for First Scan...";
+                        document.getElementById('productImage').src = "inf.jpeg";
+                        
+                        isManualMode = false;
+                        const btn = document.getElementById('toggleManualMode');
+                        btn.className = "toggle-btn";
+                        btn.innerText = "Manual Mode: OFF";
+                    }
                 })
                 .catch(err => console.error("Failed to fetch initial summary:", err));
         }
