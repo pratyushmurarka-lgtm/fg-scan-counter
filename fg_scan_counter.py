@@ -186,19 +186,9 @@ def check_duplicate(qr):
         qr_details = row[2] or qr
             
     if fgcode:
-        # Resolve Item Name from ItemMaster
-        columns = get_table_columns("ItemMaster")
-        query_cols = ["code", "codestr"]
-        if "otherdes" in columns:
-            query_cols.append("otherdes")
-        if "otherdesc" in columns:
-            query_cols.append("otherdesc")
-            
-        where_clauses = " OR ".join([f"{col} = ?" for col in query_cols])
-        params = [fgcode] * len(query_cols)
-        
+        # Resolve Item Name from ItemMaster using Code or OtherDes
         try:
-            cursor.execute(f"SELECT name FROM ItemMaster WHERE {where_clauses}", params)
+            cursor.execute("SELECT name FROM ItemMaster WHERE code = ? OR OtherDes = ?", (fgcode, fgcode))
             im_row = cursor.fetchone()
             if im_row and im_row[0]:
                 item_name = im_row[0]
@@ -462,48 +452,26 @@ def process_incoming_data(line_id, clean_data):
         itemname = state["manual_itemname"]
         brandname = state["manual_brand"]
     else:
-        # Auto-detect from ItemMaster (with column fallback safety)
-        columns = get_table_columns("ItemMaster")
-        select_cols = ["code", "name"]
-        if "codestr" in columns:
-            select_cols.append("codestr")
-        if "otherdes" in columns:
-            select_cols.append("otherdes")
-        if "otherdesc" in columns:
-            select_cols.append("otherdesc")
-            
-        cols_str = ", ".join(select_cols)
+        # Auto-detect from ItemMaster using only the OtherDes field
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute(f"SELECT {cols_str} FROM ItemMaster")
-            items = cursor.fetchall()
-            for it in items:
-                item_data = dict(zip(select_cols, it))
-                code = item_data.get("code")
-                name = item_data.get("name")
-                
-                # Check OtherDes/OtherDesc/CodeStr
-                matched = False
-                for col in ["otherdes", "otherdesc", "codestr"]:
-                    val = item_data.get(col)
-                    if val and len(str(val)) >= 3 and str(val) in clean_data:
-                        matched = True
-                        break
-                
-                if matched:
-                    fgcode = code
-                    itemname = name
-                    break
-                
-                # Match against exact code
-                if code and str(code) == clean_data:
-                    fgcode = code
-                    itemname = name
-                    break
+            cursor.execute("""
+                SELECT code, name FROM ItemMaster 
+                WHERE ? LIKE '%' || OtherDes || '%' 
+                  AND OtherDes IS NOT NULL 
+                  AND length(OtherDes) >= 3
+                ORDER BY length(OtherDes) DESC 
+                LIMIT 1
+            """, (clean_data,))
+            row = cursor.fetchone()
+            if row:
+                fgcode = row[0]
+                itemname = row[1]
         except sqlite3.OperationalError:
             pass
-        conn.close()
+        finally:
+            conn.close()
 
     if fgcode:
         # Resolve brand name dynamically from the resolved item name
