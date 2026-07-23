@@ -202,6 +202,38 @@ def check_duplicate(qr):
     return False, None, None, None, None
 
 
+def save_scan_to_mssql(fgcode, line_id, is_dup):
+    """Insert scan record directly into production MS SQL Server ESJOBSCANDATA table."""
+    conn_str = "DRIVER={SQL Server};SERVER=192.168.1.218;DATABASE=ES_COMP0001_2026;UID=sa;PWD=Intechipl@12345"
+    try:
+        conn = pyodbc.connect(conn_str, timeout=3)
+        cursor = conn.cursor()
+        
+        # Insert to SQL Server ESJOBSCANDATA
+        cursor.execute("""
+            INSERT INTO ESJOBSCANDATA (ITEM, UserName, DATE, ScanDate, ISDUP, IsConsume)
+            VALUES (?, ?, GETDATE(), GETDATE(), ?, 0)
+        """, (fgcode, line_id, is_dup))
+        
+        conn.commit()
+        conn.close()
+        print(f"[INFO] Successfully inserted scan into SQL Server ESJOBSCANDATA: Item={fgcode}, Line={line_id}")
+    except Exception as e:
+        # Fallback if IsConsume is missing, or other schema difference
+        try:
+            conn = pyodbc.connect(conn_str, timeout=3)
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO ESJOBSCANDATA (ITEM, UserName, DATE, ScanDate, ISDUP)
+                VALUES (?, ?, GETDATE(), GETDATE(), ?)
+            """, (fgcode, line_id, is_dup))
+            conn.commit()
+            conn.close()
+            print(f"[INFO] Successfully inserted scan into SQL Server ESJOBSCANDATA (without IsConsume): Item={fgcode}, Line={line_id}")
+        except Exception as e2:
+            print(f"[WARNING] Failed to write scan to MS SQL Server: {e2}")
+
+
 def save_scan(line_id, qr, fgcode, is_dup, prev_scan_date, gap_sec):
     """Save scan transaction to database tables."""
     conn = get_db_connection()
@@ -223,7 +255,7 @@ def save_scan(line_id, qr, fgcode, is_dup, prev_scan_date, gap_sec):
         VALUES (?, ?, ?, ?, ?, ?)
     """, (fgcode, qr, is_dup, line_id, gap_sec, prev_scan_date))
     
-    # Insert to ESJOBSCANDATA
+    # Insert to local replica ESJOBSCANDATA
     try:
         cursor.execute("""
             INSERT OR REPLACE INTO ESJOBSCANDATA (ITEM, UserName, DATE, ISDUP, IsConsume)
@@ -234,6 +266,9 @@ def save_scan(line_id, qr, fgcode, is_dup, prev_scan_date, gap_sec):
         
     conn.commit()
     conn.close()
+    
+    # Insert directly to SQL Server ESJOBSCANDATA
+    save_scan_to_mssql(fgcode, line_id, is_dup)
 
 
 def query_duplicate_log(line_id):
