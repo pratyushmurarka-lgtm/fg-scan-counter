@@ -183,6 +183,15 @@ def save_scan(line_id, qr, fgcode, is_dup, prev_scan_date, gap_sec):
         VALUES (?, ?, ?, ?, ?, ?)
     """, (fgcode, qr, is_dup, line_id, gap_sec, prev_scan_date))
     
+    # Insert to ESJOBSCANDATA
+    try:
+        cursor.execute("""
+            INSERT OR REPLACE INTO ESJOBSCANDATA (ITEM, UserName, DATE, ISDUP, IsConsume)
+            VALUES (?, ?, datetime('now'), ?, 0)
+        """, (fgcode, line_id, is_dup))
+    except sqlite3.OperationalError:
+        pass
+        
     conn.commit()
     conn.close()
 
