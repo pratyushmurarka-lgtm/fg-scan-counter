@@ -118,7 +118,7 @@ def broadcast_event(line_id, event_type, data):
 
 
 def check_duplicate(qr):
-    """Check if the QR has been scanned in either inscandata or ESJOBSCANDATA."""
+    """Check if the QR has been scanned in inscandata."""
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -134,20 +134,6 @@ def check_duplicate(qr):
         fgcode = row[0]
         scandate = row[1]
         qr_details = row[2] or qr
-    else:
-        # 2. Check ESJOBSCANDATA (using SQLite-safe columns if running on replica)
-        try:
-            cursor.execute("""
-                SELECT ITEM, datetime(DATE, 'localtime'), ITEM FROM ESJOBSCANDATA 
-                WHERE (ITEM = ? OR ITEM = ?) AND ISDUP = 0
-            """, (qr, qr))
-            row = cursor.fetchone()
-            if row:
-                fgcode = row[0]
-                scandate = row[1]
-                qr_details = row[2] or qr
-        except sqlite3.OperationalError:
-            pass
             
     if fgcode:
         # Resolve Item Name from ItemMaster
@@ -197,15 +183,6 @@ def save_scan(line_id, qr, fgcode, is_dup, prev_scan_date, gap_sec):
         VALUES (?, ?, ?, ?, ?, ?)
     """, (fgcode, qr, is_dup, line_id, gap_sec, prev_scan_date))
     
-    # Insert to ESJOBSCANDATA
-    try:
-        cursor.execute("""
-            INSERT OR REPLACE INTO ESJOBSCANDATA (ITEM, UserName, DATE, ISDUP, IsConsume)
-            VALUES (?, ?, datetime('now'), ?, 0)
-        """, (fgcode, line_id, is_dup))
-    except sqlite3.OperationalError:
-        pass
-        
     conn.commit()
     conn.close()
 
