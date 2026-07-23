@@ -55,6 +55,19 @@ def get_db_connection():
     return sqlite3.connect(DEFAULT_DB)
 
 
+def get_table_columns(table_name):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    columns = []
+    try:
+        cursor.execute(f"PRAGMA table_info({table_name})")
+        columns = [row[1].lower() for row in cursor.fetchall()]
+    except Exception:
+        pass
+    conn.close()
+    return columns
+
+
 def init_database():
     """Ensure the local scan counter table exists in SQLite database."""
     conn = get_db_connection()
@@ -138,8 +151,18 @@ def check_duplicate(qr):
             
     if fgcode:
         # Resolve Item Name from ItemMaster
+        columns = get_table_columns("ItemMaster")
+        query_cols = ["code", "codestr"]
+        if "otherdes" in columns:
+            query_cols.append("otherdes")
+        if "otherdesc" in columns:
+            query_cols.append("otherdesc")
+            
+        where_clauses = " OR ".join([f"{col} = ?" for col in query_cols])
+        params = [fgcode] * len(query_cols)
+        
         try:
-            cursor.execute("SELECT name FROM ItemMaster WHERE code = ? OR codestr = ? OR OtherDes = ?", (fgcode, fgcode, fgcode))
+            cursor.execute(f"SELECT name FROM ItemMaster WHERE {where_clauses}", params)
             im_row = cursor.fetchone()
             if im_row and im_row[0]:
                 item_name = im_row[0]
@@ -365,27 +388,41 @@ def process_incoming_data(line_id, clean_data):
         brandname = state["manual_brand"]
     else:
         # Auto-detect from ItemMaster (with column fallback safety)
+        columns = get_table_columns("ItemMaster")
+        select_cols = ["code", "name"]
+        if "codestr" in columns:
+            select_cols.append("codestr")
+        if "otherdes" in columns:
+            select_cols.append("otherdes")
+        if "otherdesc" in columns:
+            select_cols.append("otherdesc")
+            
+        cols_str = ", ".join(select_cols)
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute("SELECT code, name, CodeStr, OtherDes FROM ItemMaster")
+            cursor.execute(f"SELECT {cols_str} FROM ItemMaster")
             items = cursor.fetchall()
             for it in items:
-                code, name, codestr = it[0], it[1], it[2] if len(it) > 2 else ""
-                otherdes = it[3] if len(it) > 3 else ""
+                item_data = dict(zip(select_cols, it))
+                code = item_data.get("code")
+                name = item_data.get("name")
                 
-                # 1. Match against OtherDes (primary mapping column)
-                if otherdes and len(str(otherdes)) >= 3 and str(otherdes) in clean_data:
+                # Check OtherDes/OtherDesc/CodeStr
+                matched = False
+                for col in ["otherdes", "otherdesc", "codestr"]:
+                    val = item_data.get(col)
+                    if val and len(str(val)) >= 3 and str(val) in clean_data:
+                        matched = True
+                        break
+                
+                if matched:
                     fgcode = code
                     itemname = name
                     break
-                # 2. Match against CodeStr (alternative identifier)
-                elif codestr and len(str(codestr)) >= 4 and str(codestr) in clean_data:
-                    fgcode = code
-                    itemname = name
-                    break
-                # 3. Match against exact numeric code
-                elif code and str(code) == clean_data:
+                
+                # Match against exact code
+                if code and str(code) == clean_data:
                     fgcode = code
                     itemname = name
                     break
