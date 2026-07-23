@@ -7,6 +7,7 @@ import sqlite3
 import threading
 import argparse
 import re
+import pyodbc
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
@@ -68,6 +69,52 @@ def get_table_columns(table_name):
     return columns
 
 
+def sync_item_master():
+    """Sync ItemMaster table from MS SQL Server to local SQLite database on startup."""
+    print("[INFO] Initiating ItemMaster synchronization from SQL Server...")
+    sqlite_db = DEFAULT_DB
+    conn_str = "DRIVER={SQL Server};SERVER=192.168.1.218;DATABASE=ES_COMP0001_2026;UID=sa;PWD=Intechipl@12345"
+    
+    try:
+        # Connect to SQL Server
+        mssql_conn = pyodbc.connect(conn_str, timeout=5)
+        mssql_cursor = mssql_conn.cursor()
+        
+        # Fetch items
+        mssql_cursor.execute("SELECT Code, Name, CodeStr, ItemType, ItemGrp, OtherDes FROM ItemMaster")
+        rows = mssql_cursor.fetchall()
+        print(f"[INFO] Fetched {len(rows)} items from SQL Server.")
+        
+        # Write to SQLite
+        sqlite_conn = sqlite3.connect(sqlite_db)
+        sqlite_cursor = sqlite_conn.cursor()
+        
+        # Drop and recreate ItemMaster with OtherDes column
+        sqlite_cursor.execute("DROP TABLE IF EXISTS ItemMaster")
+        sqlite_cursor.execute("""
+            CREATE TABLE ItemMaster (
+                Code TEXT PRIMARY KEY,
+                Name TEXT,
+                CodeStr TEXT,
+                ItemType INTEGER,
+                ItemGrp INTEGER,
+                OtherDes TEXT
+            )
+        """)
+        
+        sqlite_cursor.executemany("""
+            INSERT OR REPLACE INTO ItemMaster (Code, Name, CodeStr, ItemType, ItemGrp, OtherDes)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, [(r[0], r[1], r[2], r[3], r[4], r[5]) for r in rows])
+        
+        sqlite_conn.commit()
+        sqlite_conn.close()
+        mssql_conn.close()
+        print("[INFO] SQLite 'ItemMaster' table successfully synchronized and updated.")
+    except Exception as e:
+        print(f"[WARNING] Failed to sync ItemMaster from SQL Server: {e}. Falling back to existing local schema.")
+
+
 def init_database():
     """Ensure the local scan counter table exists in SQLite database."""
     conn = get_db_connection()
@@ -88,6 +135,9 @@ def init_database():
     conn.commit()
     conn.close()
     print("[INFO] SQLite 'inscandata' table initialized/verified.")
+    
+    # Run sync on startup
+    sync_item_master()
 
 
 def extract_numbers(txt):
