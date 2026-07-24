@@ -81,7 +81,7 @@ def sync_item_master():
         mssql_cursor = mssql_conn.cursor()
         
         # Fetch items
-        mssql_cursor.execute("SELECT Code, Name, CodeStr, ItemType, ItemGrp, OtherDes FROM ItemMaster")
+        mssql_cursor.execute("SELECT Code, Name, CodeStr, ItemType, ItemGrp, OtherDes, MonoP, MasterP FROM ItemMaster")
         rows = mssql_cursor.fetchall()
         print(f"[INFO] Fetched {len(rows)} items from SQL Server.")
         
@@ -89,7 +89,7 @@ def sync_item_master():
         sqlite_conn = sqlite3.connect(sqlite_db)
         sqlite_cursor = sqlite_conn.cursor()
         
-        # Drop and recreate ItemMaster with OtherDes column
+        # Drop and recreate ItemMaster with OtherDes, MonoP, MasterP columns
         sqlite_cursor.execute("DROP TABLE IF EXISTS ItemMaster")
         sqlite_cursor.execute("""
             CREATE TABLE ItemMaster (
@@ -98,14 +98,16 @@ def sync_item_master():
                 CodeStr TEXT,
                 ItemType INTEGER,
                 ItemGrp INTEGER,
-                OtherDes TEXT
+                OtherDes TEXT,
+                MonoP INTEGER,
+                MasterP INTEGER
             )
         """)
         
         sqlite_cursor.executemany("""
-            INSERT OR REPLACE INTO ItemMaster (Code, Name, CodeStr, ItemType, ItemGrp, OtherDes)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, [(r[0], r[1], r[2], r[3], r[4], r[5]) for r in rows])
+            INSERT OR REPLACE INTO ItemMaster (Code, Name, CodeStr, ItemType, ItemGrp, OtherDes, MonoP, MasterP)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, [(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]) for r in rows])
         
         sqlite_conn.commit()
         sqlite_conn.close()
@@ -205,34 +207,34 @@ def check_duplicate(qr):
     return False, None, None, None, None
 
 
-def save_scan_to_mssql(fgcode, line_id, is_dup):
+def save_scan_to_mssql(fgcode, line_id, is_dup, monop, masterp, packtype, qr):
     """Insert scan record directly into production MS SQL Server ESJOBSCANDATA table."""
     conn_str = "DRIVER={SQL Server};SERVER=192.168.1.218;DATABASE=ES_COMP0001_2026;UID=sa;PWD=Intechipl@12345"
     try:
         conn = pyodbc.connect(conn_str, timeout=3)
         cursor = conn.cursor()
         
-        # Insert to SQL Server ESJOBSCANDATA
+        # Insert to SQL Server ESJOBSCANDATA with all fields
         cursor.execute("""
-            INSERT INTO ESJOBSCANDATA (ITEM, UserName, DATE, ScanDate, ISDUP, IsConsume)
-            VALUES (?, ?, GETDATE(), GETDATE(), ?, 0)
-        """, (fgcode, line_id, is_dup))
+            INSERT INTO ESJOBSCANDATA (ITEM, UserName, DATE, ScanDate, ISDUP, IsConsume, OKNG, MonoP, MasterP, Packtype, ItemDetail)
+            VALUES (?, ?, GETDATE(), GETDATE(), ?, 0, 1, ?, ?, ?, ?)
+        """, (fgcode, line_id, is_dup, monop, masterp, packtype, qr))
         
         conn.commit()
         conn.close()
-        print(f"[INFO] Successfully inserted scan into SQL Server ESJOBSCANDATA: Item={fgcode}, Line={line_id}")
+        print(f"[INFO] Successfully inserted scan into SQL Server ESJOBSCANDATA: Item={fgcode}, Line={line_id}, OKNG=1, MonoP={monop}, MasterP={masterp}, Packtype={packtype}, ItemDetail={qr}")
     except Exception as e:
-        # Fallback if IsConsume is missing, or other schema difference
+        # Fallback if some schema difference exists
         try:
             conn = pyodbc.connect(conn_str, timeout=3)
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO ESJOBSCANDATA (ITEM, UserName, DATE, ScanDate, ISDUP)
-                VALUES (?, ?, GETDATE(), GETDATE(), ?)
-            """, (fgcode, line_id, is_dup))
+                INSERT INTO ESJOBSCANDATA (ITEM, UserName, DATE, ScanDate, ISDUP, OKNG, MonoP, MasterP)
+                VALUES (?, ?, GETDATE(), GETDATE(), ?, 1, ?, ?)
+            """, (fgcode, line_id, is_dup, monop, masterp))
             conn.commit()
             conn.close()
-            print(f"[INFO] Successfully inserted scan into SQL Server ESJOBSCANDATA (without IsConsume): Item={fgcode}, Line={line_id}")
+            print(f"[INFO] Successfully inserted scan into SQL Server ESJOBSCANDATA (fallback): Item={fgcode}, Line={line_id}")
         except Exception as e2:
             print(f"[WARNING] Failed to write scan to MS SQL Server: {e2}")
 
@@ -242,13 +244,15 @@ def save_scan(line_id, qr, fgcode, is_dup, prev_scan_date, gap_sec):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Get masterp multiplier from ItemMaster if column exists
+    # Get masterp and monop from ItemMaster
     masterp = 1
+    monop = 0
     try:
-        cursor.execute("SELECT masterp FROM ItemMaster WHERE code = ?", (fgcode,))
+        cursor.execute("SELECT masterp, monop FROM ItemMaster WHERE code = ?", (fgcode,))
         row = cursor.fetchone()
-        if row and row[0]:
-            masterp = row[0]
+        if row:
+            masterp = row[0] if row[0] is not None else 1
+            monop = row[1] if row[1] is not None else 0
     except sqlite3.OperationalError:
         pass
     
@@ -270,8 +274,11 @@ def save_scan(line_id, qr, fgcode, is_dup, prev_scan_date, gap_sec):
     conn.commit()
     conn.close()
     
+    # Calculate packtype based on masterp: if masterp is 4, packsize/packtype = 1
+    packtype = 1 if masterp == 4 else None
+    
     # Insert directly to SQL Server ESJOBSCANDATA
-    save_scan_to_mssql(fgcode, line_id, is_dup)
+    save_scan_to_mssql(fgcode, line_id, is_dup, monop, masterp, packtype, qr)
 
 
 def query_duplicate_log(line_id):
