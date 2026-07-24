@@ -357,7 +357,7 @@
         /* Product Snapshot Image container */
         .image-container {
             flex: 1;
-            background-color: var(--bg-primary);
+            background: radial-gradient(circle, var(--bg-secondary) 0%, var(--bg-primary) 100%);
             border: 1px solid var(--border);
             border-radius: 12px;
             display: flex;
@@ -370,10 +370,76 @@
         }
 
         .image-container img {
-            max-width: 100%;
-            max-height: 100%;
+            max-width: 92%;
+            max-height: 92%;
             object-fit: contain;
-            filter: drop-shadow(0 10px 15px rgba(0,0,0,0.3));
+            filter: drop-shadow(0 10px 20px rgba(0,0,0,0.25));
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            cursor: zoom-in;
+        }
+
+        .image-container img:hover {
+            transform: scale(1.06);
+            filter: drop-shadow(0 14px 28px rgba(0,0,0,0.35));
+        }
+
+        /* Image Lightbox Modal */
+        .image-modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            padding-top: 50px;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.92);
+            cursor: zoom-out;
+        }
+
+        .modal-content {
+            margin: auto;
+            display: block;
+            max-width: 90%;
+            max-height: 82%;
+            border-radius: 8px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+            animation: zoom 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        @keyframes zoom {
+            from { transform: scale(0.85); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 20px;
+            right: 35px;
+            color: #ffffff;
+            font-size: 50px;
+            font-weight: 300;
+            transition: 0.2s;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .close-modal:hover {
+            color: var(--accent-orange);
+        }
+
+        .modal-caption {
+            margin: auto;
+            display: block;
+            width: 80%;
+            max-width: 700px;
+            text-align: center;
+            color: #e2e8f0;
+            padding: 20px 0;
+            font-size: 1.3rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
         }
 
         /* Full Screen Alerts */
@@ -630,7 +696,7 @@
         <div class="panel">
             <div class="panel-title">Product Image</div>
             <div class="image-container">
-                <img id="productImage" src="/images/0422.jpg" alt="Water Heater Product View">
+                <img id="productImage" src="/images/0422.jpg" alt="Water Heater Product View" onclick="openImageModal()">
             </div>
 
             <div class="panel-title">Day Summary Breakdown</div>
@@ -1078,6 +1144,36 @@
                 document.getElementById('productImage').src = `/images/${selectedCode}.jpg`;
             }
         }
+
+        // Lightbox Zoom Modal Handlers
+        function openImageModal() {
+            const img = document.getElementById('productImage');
+            const imgSrc = img.src;
+            
+            // Don't open if placeholder or no image loaded
+            if (!imgSrc || imgSrc.includes('inf.jpeg') || imgSrc.includes('inf.jpg')) {
+                return;
+            }
+            
+            const modal = document.getElementById('imageModal');
+            const modalImg = document.getElementById('imgModalSrc');
+            const captionText = document.getElementById('modalCaption');
+            
+            modal.style.display = "block";
+            modalImg.src = imgSrc;
+            captionText.innerText = document.getElementById('activeModelTitle').innerText;
+        }
+
+        function closeImageModal() {
+            document.getElementById('imageModal').style.display = "none";
+        }
     </script>
+
+    <!-- Lightbox Zoom Modal -->
+    <div id="imageModal" class="image-modal" onclick="closeImageModal()">
+        <span class="close-modal">&times;</span>
+        <img class="modal-content" id="imgModalSrc">
+        <div id="modalCaption" class="modal-caption"></div>
+    </div>
 </body>
 </html>
