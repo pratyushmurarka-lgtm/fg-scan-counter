@@ -117,6 +117,9 @@ def sync_item_master():
 
 def init_database():
     """Ensure the local scan counter table exists in SQLite database."""
+    # Ensure local image folder exists
+    os.makedirs("C:/Images", exist_ok=True)
+    
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -688,9 +691,17 @@ class DashboardServer(BaseHTTPRequestHandler):
 
         if path.startswith("/images/"):
             img_code = path.split("/")[-1].replace(".jpg", "").replace(".jpeg", "")
-            img_path = f"C:/Images/{img_code}.jpeg"
+            
+            # Check for C:\Images\<fgcode>.jpg first, then .jpeg
+            img_path = f"C:/Images/{img_code}.jpg"
+            if not os.path.exists(img_path):
+                img_path = f"C:/Images/{img_code}.jpeg"
+                
+            # If not found, use local fallback image
             if not os.path.exists(img_path):
                 img_path = "inf.jpeg"
+                if not os.path.exists(img_path):
+                    img_path = "inf.jpg"
                 
             self.send_response(200)
             self.send_header("Content-Type", "image/jpeg")
